@@ -4,32 +4,32 @@ FROM python:3.11-slim
 # Set working directory in container
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy app code
 COPY server.py .
 
-# Create .env file placeholder (will be overridden by Cloud Run env vars)
-RUN touch .env
-
-# Expose port (Cloud Run will set PORT env var)
+# Cloud Run sets PORT automatically
 ENV PORT=8080
+
+# EXPOSE is optional but okay
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')"
+# Create .env placeholder (ignored by Cloud Run)
+RUN touch .env
 
-# Run the application
-CMD uvicorn server:app --host 0.0.0.0 --port ${PORT}
+# Cloud Run does health checks externally — remove Docker HEALTHCHECK
+
+# Run app
+CMD ["python", "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
