@@ -29,7 +29,7 @@ except Exception:
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "europe-west1")
 
 # Configure ADK model connection
-gemma_model_name = os.getenv("GEMMA_MODEL_NAME", "gemma3:1b")
+gemma_model_name = os.getenv("GEMMA_MODEL_NAME", "gemma3:270m")
 api_base = os.getenv("OLLAMA_API_BASE", "http://localhost:10010")
 
 # Database configuration
