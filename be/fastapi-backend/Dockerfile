@@ -1,22 +1,20 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 
-# Copy uv from the official image
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install system packages for pypdf and ssl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
 WORKDIR /app
+COPY requirements.txt .
 
-# Copy all files
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY . .
 
-# Install Python dependencies
-RUN uv sync
-
-# Expose port
+# Ensure the container exposes the correct port
+ENV PORT=8080
 EXPOSE 8080
 
-# Run the application
-CMD ["uv", "run", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run using the platform-provided PORT
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $PORT"]
