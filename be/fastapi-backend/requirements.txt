@@ -1,22 +1,9 @@
-# FastAPI and Server
-fastapi==0.122.0
-uvicorn[standard]==0.38.0
-
-# Environment and Configuration
-python-dotenv==1.0.1
-
-# Database
-sqlalchemy==2.0.36
-psycopg2-binary==2.9.10
-
-# PDF Processing
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
+pydantic==2.5.3
 PyPDF2==3.0.1
-
-# Data Validation
-pydantic==2.10.5
-
-# Google Cloud Authentication
-google-auth==2.37.0
-
-# LLM Integration
-litellm==1.55.8
+python-multipart==0.0.6
+google-adk==1.5.0
