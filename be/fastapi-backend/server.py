@@ -29,11 +29,11 @@ except Exception:
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "europe-west1")
 
 # Configure ADK model connection
-gemma_model_name = os.getenv("GEMMA_MODEL_NAME", "gemma3:270m")
+gemma_model_name = os.getenv("GEMMA_MODEL_NAME", "gemma3:1b")
 api_base = os.getenv("OLLAMA_API_BASE", "http://localhost:10010")
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/resumeflus")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:anPVKtbUFJh2qSR9@db.fdsixtggqgxjronydsaf.supabase.co:5432/postgres")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -65,6 +65,37 @@ class JobsDatabase(Base):
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+# ==================== PYDANTIC MODELS ====================
+class JobCreate(BaseModel):
+    job_name: Optional[str] = None
+    title: str
+    link: Optional[str] = None
+    description: Optional[str] = None
+    experience_level: Optional[str] = None
+    location: Optional[str] = None
+    company: Optional[str] = None
+    salary_range: Optional[str] = None
+    job_type: Optional[str] = None
+    remote_option: Optional[str] = None
+
+class JobResponse(BaseModel):
+    id: int
+    job_name: Optional[str]
+    title: str
+    link: Optional[str]
+    description: Optional[str]
+    experience_level: Optional[str]
+    location: Optional[str]
+    company: Optional[str]
+    salary_range: Optional[str]
+    job_type: Optional[str]
+    remote_option: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 # ==================== AI AGENTS ====================
 
@@ -292,7 +323,151 @@ async def upload_cv_and_get_jobs(
         raise HTTPException(status_code=500, detail=f"Error processing CV: {str(e)}")
 
 
-# ==================== ADDITIONAL ENDPOINTS ====================
+# ==================== JOB MANAGEMENT ENDPOINTS ====================
+
+@app.post("/jobs", response_model=JobResponse, tags=["Job Management"])
+def create_job(job: JobCreate, db: Session = Depends(get_db)):
+    """
+    Create a new job posting
+    
+    **Example:**
+    ```bash
+    curl -X POST "http://localhost:8080/jobs" \
+         -H "Content-Type: application/json" \
+         -d '{
+           "title": "Senior Python Developer",
+           "company": "Tech Corp",
+           "location": "Remote",
+           "description": "Looking for experienced Python developer...",
+           "experience_level": "Senior",
+           "job_type": "Full-time",
+           "remote_option": "Remote",
+           "salary_range": "$120k-$150k"
+         }'
+    ```
+    """
+    try:
+        db_job = JobsDatabase(
+            job_name=job.job_name,
+            title=job.title,
+            link=job.link,
+            description=job.description,
+            experience_level=job.experience_level,
+            location=job.location,
+            company=job.company,
+            salary_range=job.salary_range,
+            job_type=job.job_type,
+            remote_option=job.remote_option
+        )
+        
+        db.add(db_job)
+        db.commit()
+        db.refresh(db_job)
+        
+        return db_job
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating job: {str(e)}")
+
+@app.post("/jobs/bulk", tags=["Job Management"])
+def create_jobs_bulk(jobs: List[JobCreate], db: Session = Depends(get_db)):
+    """
+    Create multiple job postings at once
+    
+    **Example:**
+    ```bash
+    curl -X POST "http://localhost:8080/jobs/bulk" \
+         -H "Content-Type: application/json" \
+         -d '[
+           {
+             "title": "Backend Developer",
+             "company": "StartupXYZ",
+             "location": "New York"
+           },
+           {
+             "title": "Frontend Developer",
+             "company": "StartupXYZ",
+             "location": "New York"
+           }
+         ]'
+    ```
+    """
+    try:
+        db_jobs = []
+        for job in jobs:
+            db_job = JobsDatabase(
+                job_name=job.job_name,
+                title=job.title,
+                link=job.link,
+                description=job.description,
+                experience_level=job.experience_level,
+                location=job.location,
+                company=job.company,
+                salary_range=job.salary_range,
+                job_type=job.job_type,
+                remote_option=job.remote_option
+            )
+            db_jobs.append(db_job)
+        
+        db.add_all(db_jobs)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Successfully created {len(db_jobs)} jobs",
+            "count": len(db_jobs)
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating jobs: {str(e)}")
+
+@app.get("/jobs", tags=["Job Management"])
+def list_jobs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    company: Optional[str] = None,
+    location: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Get list of all jobs with optional filters"""
+    query = db.query(JobsDatabase)
+    
+    if company:
+        query = query.filter(JobsDatabase.company.ilike(f"%{company}%"))
+    if location:
+        query = query.filter(JobsDatabase.location.ilike(f"%{location}%"))
+    
+    total = query.count()
+    jobs = query.order_by(JobsDatabase.created_at.desc()).offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "jobs": jobs
+    }
+
+@app.get("/jobs/{job_id}", response_model=JobResponse, tags=["Job Management"])
+def get_job(job_id: int, db: Session = Depends(get_db)):
+    """Get a specific job by ID"""
+    job = db.query(JobsDatabase).filter(JobsDatabase.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@app.delete("/jobs/{job_id}", tags=["Job Management"])
+def delete_job(job_id: int, db: Session = Depends(get_db)):
+    """Delete a job by ID"""
+    job = db.query(JobsDatabase).filter(JobsDatabase.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    db.delete(job)
+    db.commit()
+    
+    return {"success": True, "message": f"Job {job_id} deleted successfully"}
+
+# ==================== GENERAL ENDPOINTS ====================
 
 @app.get("/", tags=["General"])
 def root():
@@ -301,12 +476,15 @@ def root():
         "service": "Simple CV Upload & Job Match API",
         "version": "3.0.0",
         "main_endpoint": "/upload-cv (POST with PDF file)",
+        "job_management": {
+            "create_job": "POST /jobs",
+            "bulk_create": "POST /jobs/bulk",
+            "list_jobs": "GET /jobs",
+            "get_job": "GET /jobs/{job_id}",
+            "delete_job": "DELETE /jobs/{job_id}"
+        },
         "description": "Upload your CV PDF and instantly get review + job recommendations",
-        "docs": "/docs",
-        "example": {
-            "endpoint": "POST /upload-cv?limit=10",
-            "body": "multipart/form-data with 'file' field containing PDF"
-        }
+        "docs": "/docs"
     }
 
 @app.get("/health", tags=["General"])
@@ -335,5 +513,6 @@ if __name__ == "__main__":
     print("🚀 Starting Simple CV Upload & Job Match API...")
     print("📚 API Documentation: http://localhost:8080/docs")
     print("🎯 Main Endpoint: POST http://localhost:8080/upload-cv")
+    print("💼 Job Management: POST /jobs, GET /jobs")
     print("💡 Just upload your CV PDF and get everything instantly!")
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
