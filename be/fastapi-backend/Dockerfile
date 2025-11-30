@@ -1,35 +1,20 @@
-# Use official Python runtime as base image
 FROM python:3.11-slim
 
-# Set working directory in container
-WORKDIR /app
-
-# Install system dependencies (minimal)
+# Install system packages for pypdf and ssl
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    postgresql-client \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+WORKDIR /app
 COPY requirements.txt .
 
-# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
-COPY server.py .
+COPY . .
 
-# Cloud Run sets PORT automatically
+# Ensure the container exposes the correct port
 ENV PORT=8080
-
-# EXPOSE is optional but okay
 EXPOSE 8080
 
-# Create .env placeholder (ignored by Cloud Run)
-RUN touch .env
-
-# Cloud Run does health checks externally — remove Docker HEALTHCHECK
-
-# Run app
-CMD ["python", "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run using the platform-provided PORT
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $PORT"]

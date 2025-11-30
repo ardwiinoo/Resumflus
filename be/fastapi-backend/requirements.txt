@@ -1,9 +1,5 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
-sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
-python-dotenv==1.0.0
-pydantic==2.5.3
-PyPDF2==3.0.1
-python-multipart==0.0.6
-google-adk==1.5.0
+fastapi
+uvicorn[standard]
+pypdf
+python-multipart
+requests
