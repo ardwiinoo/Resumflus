@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY main.py .
+COPY server.py .
 
 # Create .env file placeholder (will be overridden by Cloud Run env vars)
 RUN touch .env
